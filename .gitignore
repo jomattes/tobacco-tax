@@ -1,0 +1,14 @@
+# folders
+Explore_LLCP_2017_cache/
+Explore_LLCP_2017_files/
+LLCP2014ASC/
+LLCP2015ASC/
+LLCP2016ASC/
+LLCP2017ASC/
+
+# extensions
+*.csv
+*.Rhistory
+
+# files
+notes.txt

@@ -1,0 +1,253 @@
+---
+title: "Explore_LLCP_2017"
+author: "Jon Mattes"
+date: "July 9, 2019"
+output: html_document
+---
+
+```{r, message=FALSE}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(lubridate)
+library(ggrepel)
+```
+
+Load in necessary files (https://www.cdc.gov/brfss/annual_data/annual_data.htm, https://www.tobaccofreekids.org/assets/factsheets/0097.pdf):
+```{r, message=FALSE, cache=TRUE}
+# cigarette taxes by state in 2019
+cig_taxes_df <- read_csv('2019_tobacco_taxes_by_state.csv')
+
+# cigarette tax increases by state (2013-2019)
+tax_increase_df <- read_csv('cigarette_tax_increases_by_state.csv')
+
+# variable layouts
+layout_2017_df <- read_csv('variable_layout_2017.csv')
+layout_2016_df <- read_csv('variable_layout_2016.csv')
+layout_2015_df <- read_csv('variable_layout_2015.csv')
+layout_2014_df <- read_csv('variable_layout_2014.csv')
+
+# BRFSS ASCII files
+brfss_2017_df <- read_fwf('LLCP2017ASC/LLCP2017.ASC',
+                          fwf_positions(col_names=layout_2017_df$`Variable Name`,
+                                        start=layout_2017_df$`Starting Column`,
+                                        end=layout_2017_df$`Starting Column` + 
+                                          layout_2017_df$`Field Length` - 
+                                          1),
+                          guess_max=450000,
+                          progress=FALSE)
+brfss_2016_df <- read_fwf('LLCP2016ASC/LLCP2016.ASC',
+                          fwf_positions(col_names=layout_2016_df$`Variable Name`,
+                                        start=layout_2016_df$`Starting Column`,
+                                        end=layout_2016_df$`Starting Column` + 
+                                          layout_2016_df$`Field Length` - 
+                                          1),
+                          guess_max=450000,
+                          progress=FALSE)
+brfss_2015_df <- read_fwf('LLCP2015ASC/LLCP2015.ASC',
+                          fwf_positions(col_names=layout_2015_df$`Variable Name`,
+                                        start=layout_2015_df$`Starting Column`,
+                                        end=layout_2015_df$`Starting Column` + 
+                                          layout_2015_df$`Field Length` - 
+                                          1),
+                          guess_max=450000,
+                          progress=FALSE)
+brfss_2014_df <- read_fwf('LLCP2014ASC/LLCP2014.ASC',
+                          fwf_positions(col_names=layout_2014_df$`Variable Name`,
+                                        start=layout_2014_df$`Starting Column`,
+                                        end=layout_2014_df$`Starting Column` + layout_2014_df$`Field Length` - 1),
+                          guess_max=450000,
+                          progress=FALSE)
+```
+
+Interesting variables available for every year (2017 codebook is available at https://www.cdc.gov/brfss/annual_data/2017/pdf/codebook17_llcp-v2-508.pdf):
+
+* _STATE: Code for each state
+* CADULT: Are you 18 years of age or older?
+* CHCOCNCR: (Ever told) you had other types of cancer [other than skin]?
+* CHCCOPD1: (Ever told) you have chronic obstructive pulmonary disease, C.O.P.D., emphysema or chronic bronchitis?
+* SEX: Indicate sex of respondent.
+* EDUCA: Code for highest grade or year of school you completed?
+* EMPLOY1: Employment status
+* INCOME2: Income level
+* SMOKE100: Have you smoked at least 100 cigarettes in your entire life?
+* SMOKDAY2: Do you now smoke cigarettes every day, some days, or not at all?
+* STOPSMK2: During the past 12 months, have you stopped smoking for one day or longer because you were trying to quit smoking?
+* LASTSMK2: How long has it been since you last smoked a cigarette, even one or two puffs? (For respondents that claim they do not smoke cigarettes at all now, question SMOKDAY2)
+* USENOW3: Do you currently use chewing tobacco, snuff, or snus every day, some days, or not at all?
+
+Create relevant dataframe based on the features identified above:
+```{r, cache=TRUE}
+brfss_2017_cln <- brfss_2017_df %>%
+  select(`_STATE`, CHCOCNCR, CHCCOPD1, SEX, EDUCA, EMPLOY1, INCOME2,
+         SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2, USENOW3)
+brfss_2016_cln <- brfss_2016_df %>%
+  select(`_STATE`, CHCOCNCR, CHCCOPD1, SEX, EDUCA, EMPLOY1, INCOME2,
+         SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2, USENOW3)
+brfss_2015_cln <- brfss_2015_df %>%
+  select(`_STATE`, CHCOCNCR, CHCCOPD1, SEX, EDUCA, EMPLOY1, INCOME2,
+         SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2, USENOW3)
+brfss_2014_cln <- brfss_2014_df %>%
+  select(`_STATE`, CHCOCNCR, CHCCOPD1, SEX, EDUCA, EMPLOY1, INCOME2,
+         SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2, USENOW3)
+```
+
+Joining brffs_cln tables:
+```{r, cache=TRUE}
+brfss_cln_combo <- rbind(brfss_2017_cln, brfss_2016_cln, 
+                         brfss_2015_cln, brfss_2014_cln)
+```
+
+Summary stats:
+```{r, cache=TRUE}
+summary(cig_taxes_df)
+summary(tax_increase_df)
+summary(brfss_cln_combo)
+```
+
+Evaluating distributions:
+```{r, cache=TRUE, fig.height=15, fig.width=10, cache=TRUE}
+brfss_cln_combo %>%  gather() %>% ggplot(aes(value)) + geom_bar() + facet_wrap(~key, scales='free', ncol=2)
+```
+
+Individual graphs for unreadable graphs above:
+```{r, cache=TRUE, fig.height=12, fig.width=10, cache=TRUE}
+brfss_cln_combo %>% ggplot(aes(`_STATE`)) + geom_bar() + coord_flip()
+```
+
+#### Notes from above:
+
+* Will need to remove/impute NA values from several variables
+* Number of respondents in each state does not necessarily follow the population distribution.  Can easily see that California (06) is not very high compared to their population
+* Most respondents have never had COPD
+* Most respondents have never had cancer
+* The most frequent education level were college graduates, and most of the sample had at least a high school diploma or GED
+* Most respondents were employed or retired
+* The most common wage was $75,000 or more
+* Most responses were NA for LASTSMK2, but for those who were able to respond, their last cigarette was most frequently consumed more than 10 years ago
+* 57% of respondents were female
+* Most responses were NA for SMOKDAY2, but for those who were able to respond, they most commonly smoke "Not at all", followed by "Every day"
+* 41% of respondents had smoked at least 100 cigarettes in their entire life
+* Most responses were NA for STOPSMK2, but for those who were able to respond, they most commonly did try smoking for one day or longer during the past 12 months (57% of those who could answer the question aka smokers)
+* Most respondents do not use smokeless tobacco, 3% do use smokeless tobacco
+
+### Cigarette Taxes Around the Country:
+
+```{r, fig.height=6, fig.width=10, cache=TRUE}
+# create relevant table
+states_map <- map_data('state')
+cig_taxes_df$region <- tolower(cig_taxes_df$Value)
+cig_map_df <- left_join(states_map, cig_taxes_df, by='region')
+
+g <- ggplot(cig_map_df, aes(long, lat, group=group)) +
+  geom_polygon(aes(fill=Tax), color='white') +
+  scale_fill_viridis_c(option='C')
+t <- cig_taxes_df %>% 
+  group_by(Value) %>% 
+  summarize(`2019 Tax` = mean(Tax)) %>% 
+  filter(!(Value %in% c('NA', 'Puerto Rico', 'DC', 'Guam'))) %>%
+  arrange(desc(`2019 Tax`)) %>%
+  mutate(Rank = min_rank(desc(`2019 Tax`))) %>%
+  rename(State = Value)
+
+print(g)
+knitr::kable(t)
+```
+
+### A History of Tax Increases
+
+```{r, fig.width=10, fig.height=30, cache=TRUE}
+# create 2019 rates
+tax_2019_df <- tax_increase_df %>% 
+  mutate(`Date Increase` = mdy(`Effective Date of Increase`)) %>% 
+  group_by(State) %>% 
+  summarize(`Tax Rate After Increase` = max(`Tax Rate After Increase`)) %>% 
+  mutate(Year = 2019, 
+         `Effective Date of Increase` = '12/31/2019', 
+         `Amount of Increase` = 0.0) %>%
+  select(Year, 
+         State, 
+         `Effective Date of Increase`, 
+         `Amount of Increase`, 
+         `Tax Rate After Increase`)
+
+# create 2013 rates
+tax_2013_df <- tax_increase_df %>%
+  mutate(`Date Increase` = mdy(`Effective Date of Increase`)) %>% 
+  group_by(State) %>%
+  filter(`Tax Rate After Increase` == min(`Tax Rate After Increase`)) %>%
+  ungroup() %>%
+  mutate(Year = 2013, 
+         `Effective Date of Increase` = '1/1/2013', 
+         `Tax Rate After Increase` = `Tax Rate After Increase` - `Amount of Increase`,
+         `Amount of Increase` = 0.0) %>%
+  select(Year, 
+         State, 
+         `Effective Date of Increase`, 
+         `Amount of Increase`, 
+         `Tax Rate After Increase`)
+
+# add 2013 and 2019 values for states not in tax_increase_df
+flat_tax_2013 <- cig_taxes_df %>% 
+  anti_join(tax_increase_df, by=c('Value' = 'State')) %>%
+  mutate(Year = 2013, 
+         `Effective Date of Increase` = '1/1/2013', 
+         `Tax Rate After Increase` = Tax,
+         `Amount of Increase` = 0.0,
+         State = Value) %>%
+  select(Year, 
+         State, 
+         `Effective Date of Increase`, 
+         `Amount of Increase`, 
+         `Tax Rate After Increase`)
+flat_tax_2019  <- flat_tax_2013 %>%
+  mutate(Year = 2019,
+         `Effective Date of Increase` = '12/31/2019')
+
+# combine all dataframes
+tax_increase_combo <- rbind(tax_2019_df, tax_increase_df, tax_2013_df, 
+                            flat_tax_2013, flat_tax_2019) %>%
+  filter(!(State %in% c('NA', 'Puerto Rico', 'Washington, DC', 'Guam', 
+                        'Northern Mariana Isl.', 'DC')))
+
+# create graph
+g <- tax_increase_combo %>%
+  mutate(`Date Increase` = mdy(`Effective Date of Increase`),
+         label = if_else(`Date Increase` == max(`Date Increase`), as.character(State), NA_character_)) %>%
+  ggplot(aes(x=`Date Increase`, y=`Tax Rate After Increase`, group=State, color=State)) + 
+  theme_bw() + 
+  geom_step(size=1.5) +
+  geom_label_repel(aes(label=label), nudge_x=1, na.rm =TRUE) +
+  theme(legend.position='none')  +
+  scale_y_continuous(breaks=seq(0, 5.25, 0.25)) + 
+  scale_x_date(date_breaks='1 year', date_labels='%Y')
+
+# create table
+t <- tax_increase_df
+
+print(g)
+knitr::kable(t)
+```
+
+#### Notes from above:
+
+* Oregon is 31st in the country for cigarette taxes at $1.33 currently.
+* The tax rate has only increased by a minor amount since 2013 (only $0.23)
+
+### Smoking Rates Around the Country
+
+```{r}
+# going to look at SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2 AND USENOW3
+
+# add region labels to brfss_cln_combo
+
+
+# SMOKE100 Visuals
+
+```
+
+
+Notes:
+-Missing information on smokers < 18 years old.  Not in this survey.
+-Individual taxes for specific regions may be different based on county or city taxes.
