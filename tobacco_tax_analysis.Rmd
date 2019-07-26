@@ -28,6 +28,9 @@ layout_2016_df <- read_csv('variable_layout_2016.csv')
 layout_2015_df <- read_csv('variable_layout_2015.csv')
 layout_2014_df <- read_csv('variable_layout_2014.csv')
 
+# state names
+state_name_df <- read_csv('state_names.csv')
+
 # BRFSS ASCII files
 brfss_2017_df <- read_fwf('LLCP2017ASC/LLCP2017.ASC',
                           fwf_positions(col_names=layout_2017_df$`Variable Name`,
@@ -59,6 +62,9 @@ brfss_2014_df <- read_fwf('LLCP2014ASC/LLCP2014.ASC',
                                         end=layout_2014_df$`Starting Column` + layout_2014_df$`Field Length` - 1),
                           guess_max=450000,
                           progress=FALSE)
+
+# remove unneeded objects
+rm(layout_2014_df, layout_2015_df, layout_2016_df, layout_2017_df)
 ```
 
 Interesting variables available for every year (2017 codebook is available at https://www.cdc.gov/brfss/annual_data/2017/pdf/codebook17_llcp-v2-508.pdf):
@@ -72,31 +78,41 @@ Interesting variables available for every year (2017 codebook is available at ht
 * EMPLOY1: Employment status
 * INCOME2: Income level
 * SMOKE100: Have you smoked at least 100 cigarettes in your entire life?
-* SMOKDAY2: Do you now smoke cigarettes every day, some days, or not at all?
+* SMOKDAY2: Do you now smoke cigarettes every day, some days, or not at all? (only for respondents answering Yes to SMOKE100)
 * STOPSMK2: During the past 12 months, have you stopped smoking for one day or longer because you were trying to quit smoking?
-* LASTSMK2: How long has it been since you last smoked a cigarette, even one or two puffs? (For respondents that claim they do not smoke cigarettes at all now, question SMOKDAY2)
+* LASTSMK2: How long has it been since you last smoked a cigarette, even one or two puffs? (For respondents that claim they do not smoke cigarettes at all now on question SMOKDAY2)
 * USENOW3: Do you currently use chewing tobacco, snuff, or snus every day, some days, or not at all?
 
 Create relevant dataframe based on the features identified above:
 ```{r, cache=TRUE}
 brfss_2017_cln <- brfss_2017_df %>%
   select(`_STATE`, CHCOCNCR, CHCCOPD1, SEX, EDUCA, EMPLOY1, INCOME2,
-         SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2, USENOW3)
+         SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2, USENOW3) %>%
+  mutate(YEAR = 2017)
 brfss_2016_cln <- brfss_2016_df %>%
   select(`_STATE`, CHCOCNCR, CHCCOPD1, SEX, EDUCA, EMPLOY1, INCOME2,
-         SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2, USENOW3)
+         SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2, USENOW3) %>%
+  mutate(YEAR = 2016)
 brfss_2015_cln <- brfss_2015_df %>%
   select(`_STATE`, CHCOCNCR, CHCCOPD1, SEX, EDUCA, EMPLOY1, INCOME2,
-         SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2, USENOW3)
+         SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2, USENOW3) %>%
+  mutate(YEAR = 2015)
 brfss_2014_cln <- brfss_2014_df %>%
   select(`_STATE`, CHCOCNCR, CHCCOPD1, SEX, EDUCA, EMPLOY1, INCOME2,
-         SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2, USENOW3)
+         SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2, USENOW3) %>%
+  mutate(YEAR = 2014)
 ```
 
 Joining brffs_cln tables:
 ```{r, cache=TRUE}
 brfss_cln_combo <- rbind(brfss_2017_cln, brfss_2016_cln, 
                          brfss_2015_cln, brfss_2014_cln)
+
+# remove unneeded objects 
+rm(brfss_2014_df, brfss_2014_cln, 
+   brfss_2015_df, brfss_2015_cln,
+   brfss_2016_df, brfss_2016_cln,
+   brfss_2017_df, brfss_2017_cln)
 ```
 
 Summary stats:
@@ -142,7 +158,9 @@ cig_map_df <- left_join(states_map, cig_taxes_df, by='region')
 
 g <- ggplot(cig_map_df, aes(long, lat, group=group)) +
   geom_polygon(aes(fill=Tax), color='white') +
-  scale_fill_viridis_c(option='C')
+  scale_fill_viridis_c(option='C') +
+  ggtitle('2019 Cigarette Taxes by State')
+
 t <- cig_taxes_df %>% 
   group_by(Value) %>% 
   summarize(`2019 Tax` = mean(Tax)) %>% 
@@ -153,6 +171,9 @@ t <- cig_taxes_df %>%
 
 print(g)
 knitr::kable(t)
+
+# remove unneeded objects
+rm(g, t, cig_map_df)
 ```
 
 ### A History of Tax Increases
@@ -221,13 +242,17 @@ g <- tax_increase_combo %>%
   geom_label_repel(aes(label=label), nudge_x=1, na.rm =TRUE) +
   theme(legend.position='none')  +
   scale_y_continuous(breaks=seq(0, 5.25, 0.25)) + 
-  scale_x_date(date_breaks='1 year', date_labels='%Y')
+  scale_x_date(date_breaks='1 year', date_labels='%Y') +
+  ggtitle('Cigarette Tax Changes by State (2013-2019)')
 
 # create table
 t <- tax_increase_df
 
 print(g)
 knitr::kable(t)
+
+# remove unneeded objects
+rm(tax_2019_df, tax_2013_df, g, t)
 ```
 
 #### Notes from above:
@@ -237,15 +262,163 @@ knitr::kable(t)
 
 ### Smoking Rates Around the Country
 
-```{r}
+```{r, fig.height=6, fig.width=10, cache=TRUE}
 # going to look at SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2 AND USENOW3
 
-# add region labels to brfss_cln_combo
+# get aggregate tables
+state_name_df$region <- tolower(state_name_df$`Value Label`)
+
+smoking_rate_df <- brfss_cln_combo %>% 
+  filter(YEAR == 2017) %>%
+  mutate(Value = as.integer(`_STATE`)) %>% 
+  left_join(state_name_df, by='Value') %>% 
+  select(region, SMOKE100, SMOKDAY2, STOPSMK2, LASTSMK2, USENOW3)
+
+# SMOKE100 (proportion of respondents answering 'Yes', invalid responses removed)
+smoke_df <- smoking_rate_df %>% 
+  filter(SMOKE100 %in% c(1, 2)) %>% 
+  group_by(region, SMOKE100) %>% 
+  summarize(n = n()) %>% 
+  mutate(freq = n / sum(n)) %>% 
+  ungroup() %>% 
+  filter(SMOKE100 == 1, 
+         !(region %in% c('puerto rico', 'district of columbia', 'guam')),
+         !is.na(region)) %>%
+  select(-SMOKE100) %>%
+  arrange(desc(freq)) %>%
+  mutate(Rank = min_rank(desc(freq)))
+
+smoke_map <- smoke_df %>%
+  left_join(states_map, by='region')
+
+g <- ggplot(smoke_map, aes(long, lat, group=group)) +
+  geom_polygon(aes(fill=freq), color='white') +
+  scale_fill_viridis_c(option='C') +
+  ggtitle('Proportion of State Residents Who Have Smoked at Least 100 Cigarettes (2017)')
+
+print(g)
+knitr::kable(smoke_df)
+
+# SMOKDAY2 (proportion of respondents answering 'Not at all', invalid responses removed)
+smoke_df <- smoking_rate_df %>%
+  filter(SMOKDAY2 %in% c(1, 2, 3)) %>%
+  group_by(region, SMOKDAY2) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  ungroup() %>%
+  filter(SMOKDAY2 == 3,
+         !(region %in% c('puerto rico', 'district of columbia', 'guam')),
+         !is.na(region)) %>%
+  select(-SMOKDAY2) %>%
+  arrange(desc(freq)) %>%
+  mutate(Rank = min_rank(desc(freq)))
+
+smoke_map <- smoke_df %>%
+  left_join(states_map, by='region')
+
+g <- ggplot(smoke_map, aes(long, lat, group=group)) +
+  geom_polygon(aes(fill=freq), color='white') +
+  scale_fill_viridis_c(option='C') +
+  ggtitle('Proportion of Smokers in each State who Have Successfully Quit (2017)')
+
+print(g)
+knitr::kable(smoke_df)
+
+# STOPSMK2 (proportion of respondents answering 'Yes', invalid responses removed)
+smoke_df <- smoking_rate_df %>%
+  filter(STOPSMK2 %in% c(1, 2)) %>%
+  group_by(region, STOPSMK2) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  ungroup() %>%
+  filter(STOPSMK2 == 1,
+         !(region %in% c('puerto rico', 'district of columbia', 'guam')),
+         !is.na(region)) %>%
+  select(-STOPSMK2) %>%
+  arrange(desc(freq)) %>%
+  mutate(Rank = min_rank(desc(freq)))
+
+smoke_map <- smoke_df %>%
+  left_join(states_map, by='region')
+
+g <- ggplot(smoke_map, aes(long, lat, group=group)) +
+  geom_polygon(aes(fill=freq), color='white') +
+  scale_fill_viridis_c(option='C') +
+  ggtitle('Proportion of Smokers in each State who are Attempting to Quit (2017)')
+
+print(g)
+knitr::kable(smoke_df)
+
+# LASTSMK2 (proportion of respondents answering 1, 2, 3, or 4. Invalid responses removed.)
+smoke_df <- smoking_rate_df %>%
+  mutate(LASTSMK2 = as.integer(LASTSMK2),
+         LASTSMK2 = ifelse(LASTSMK2 %in% c(1:4), 1, LASTSMK2)) %>%
+  filter(LASTSMK2 %in% c(1:7)) %>%
+  group_by(region, LASTSMK2) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  ungroup() %>%
+  filter(LASTSMK2 == 1,
+         !(region %in% c('puerto rico', 'district of columbia', 'guam')),
+         !is.na(region)) %>%
+  select(-LASTSMK2) %>%
+  arrange(desc(freq)) %>%
+  mutate(Rank = min_rank(desc(freq)))
+  
+smoke_map <- smoke_df %>%
+  left_join(states_map, by='region')
+
+g <- ggplot(smoke_map, aes(long, lat, group=group)) +
+  geom_polygon(aes(fill=freq), color='white') +
+  scale_fill_viridis_c(option='C') +
+  ggtitle('Proportion of Quitters in each State that have Quit in the Past Year (2017)')
+
+print(g)
+knitr::kable(smoke_df)
+
+# USENOW3 (proportion of residents answering 1 or 2. Invalid responses removed.)
+smoke_df <- smoking_rate_df %>%
+  mutate(USENOW3 = as.integer(USENOW3),
+         USENOW3 = ifelse(USENOW3 %in% c(1, 2), 1, USENOW3)) %>%
+  filter(USENOW3 %in% c(1:9)) %>%
+  group_by(region, USENOW3) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  ungroup() %>%
+  filter(USENOW3 == 1,
+         !(region %in% c('puerto rico', 'district of columbia', 'guam')),
+         !is.na(region)) %>%
+  select(-USENOW3) %>%
+  arrange(desc(freq)) %>%
+  mutate(Rank = min_rank(desc(freq)))
+
+smoke_map <- smoke_df %>%
+  left_join(states_map, by='region')
+
+g <- ggplot(smoke_map, aes(long, lat, group=group)) +
+  geom_polygon(aes(fill=freq), color='white') +
+  scale_fill_viridis_c(option='C') +
+  ggtitle('Proportion of State Residents who use Smokeless Tobacco (2017)')
+
+print(g)
+knitr::kable(smoke_df)
 
 
-# SMOKE100 Visuals
+# TODO may want to filter the above graphs to be based on only the most recent survey results, rather
+# than all years combined...
 
+# remove unneeded objects
+rm(smoking_rate_df, smoke_df, smoke_map, g)
 ```
+
+#### Notes from Above:
+
+* Oregon is 35th in residents smoking at least 100 cigarettes. Utah stands out as an outlier.
+* Oregon is 19th in smokers that have successfully quit.  Tennessee, Louisiana, West Virginia, and Kentucky stand out as low. Connecticut stands out as high.
+* Oregon is 36th in the proportion of smokers who are attempting to quit.  Iowa, Montana, and North Dakota stand out as low.
+* Oregon is 20th in the proportion of quitters that have quit in the past year.
+* Oregon is 32nd in residents using smokeless tobacco.  Montana, West Virginia, and Wyoming stand out as high.  Rhode Island and Maryland stand out as low.
+* OVERALL: Oregon is near the middle of the pack in nearly every metric.
 
 
 Notes:
